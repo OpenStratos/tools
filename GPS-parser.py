@@ -23,12 +23,12 @@ def parse_GSA(frame):
 def parse_GGA(frame):
     if frame[6] != '0':
         data = {}
-        data['time'] = datetime.time(int(frame[1][0:2]), int(frame[1][2:4]), int(frame[1][4:6]))
+        data['time'] = datetime.time(int(frame[1][:2]), int(frame[1][2:4]), int(frame[1][4:6]))
 
-        data['latitude'] = int(frame[2][0:2])+float(frame[2][2:])/60 if frame[2] is not '' else None
+        data['latitude'] = int(frame[2][0:2])+float(frame[2][2:])/60
         if frame[3] == 'S':
             data['latitude'] *= -1
-        data['longitude'] = int(frame[4][0:3])+float(frame[4][3:])/60 if frame[4] is not '' else None
+        data['longitude'] = int(frame[4][0:3])+float(frame[4][3:])/60
         if frame[5] == 'W':
             data['longitude'] *= -1
 
@@ -43,7 +43,27 @@ def parse_GGA(frame):
     return None
 
 def parse_RMC(frame):
-    return {'time': None}
+    if frame[2] == 'A':
+        data = {}
+        data['timestamp'] = datetime.datetime(int(frame[9][4:6])+2000, int(frame[9][2:4]), int(frame[9][:2]),
+            int(frame[1][:2]), int(frame[1][2:4]), int(frame[1][4:6]))
+
+        data['latitude'] = int(frame[3][0:2])+float(frame[3][2:])/60
+        if frame[4] == 'S':
+            data['latitude'] *= -1
+        data['longitude'] = int(frame[5][0:3])+float(frame[5][3:])/60
+        if frame[6] == 'W':
+            data['longitude'] *= -1
+
+        data['speed'] = float(frame[7])*463/900
+        data['course'] = float(frame[8])
+        data['mag_var'] = float(frame[10]) if frame[10] != '' else None
+        if frame[11] == 'W':
+            data['mag_var'] *= -1
+
+        return data
+
+    return None
 
 def parse_raw(file_path):
     initialized = False
@@ -54,6 +74,7 @@ def parse_raw(file_path):
     pdop = {'time': [], 'pdop': []}
     hdop = {'time': [], 'hdop': []}
     vdop = {'time': [], 'vdop': []}
+    speed = {'time': [], 'speed': []}
     with codecs.open(file_path, 'r', 'iso-8859-1') as raw_file:
         for line in raw_file:
             if not initialized:
@@ -111,6 +132,13 @@ def parse_raw(file_path):
                     if parsed_frame is not None:
                         frame_count += 1
 
+                        position['time'].append(timestamp)
+                        position['lon'].append(parsed_frame['longitude'])
+                        position['lat'].append(parsed_frame['latitude'])
+
+                        speed['time'].append(timestamp)
+                        speed['speed'].append(parsed_frame['speed'])
+
     fig, ax1 = plt.subplots()
     fig.suptitle('Satellites and precision', fontsize=20)
     fig.set_figheight(8)
@@ -140,23 +168,27 @@ def parse_raw(file_path):
     plt.xlabel('Time', fontsize=15)
     plt.ylabel('Altitude (m)', fontsize=15)
     plt.plot(altitude['time'], altitude['alt'], 'k-')
-    plt.ylim((0,max(altitude['alt'])*1.1))
+    plt.ylim((0, max(altitude['alt'])*1.1))
 
     plt.savefig('altitude.svg')
+
+    plt.figure(figsize=(len(speed['time'])/40, max(max(speed['speed'])*1.1/5, 5)))
+    plt.title('Horizontal speed', fontsize=20)
+    plt.xlabel('Time', fontsize=15)
+    plt.ylabel('Speed (m/s)', fontsize=15)
+    plt.plot(speed['time'], speed['speed'], 'k-')
+    plt.ylim((0, max(speed['speed'])*1.1))
+
+    plt.savefig('h_speed.svg')
+
     print("Total frames: %d" % frame_count)
     print("Max. altitude: %f m" % max(altitude['alt']))
-
+    print("Max. horizontal speed: %f m/s" % max(speed['speed']))
 
 parser = argparse.ArgumentParser(description='Process OpenStratos GPS data')
 parser.add_argument('file', metavar='FILE', type=str, nargs=1,
                    help='the file containing GPS data')
-parser.add_argument('--raw', dest='raw', action='store_true', help='provide the raw GPS frames')
 
 args = parser.parse_args()
-
-if args.raw:
-    path = os.path.join(os.path.dirname(__file__), args.file[0])
-    parse_raw(path)
-else:
-    path = os.path.join(os.path.dirname(__file__), args.file[0])
-    parse(path)
+path = os.path.join(os.path.dirname(__file__), args.file[0])
+parse_raw(path)

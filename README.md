@@ -1,2 +1,3 @@
-# tools
-Tools for dealing with OpenStratos data
+# Tools #
+
+Tools for dealing with OpenStratos data.
