@@ -7,6 +7,7 @@ import datetime
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num, num2date
 import numpy as np
+import simplekml
 
 def parse_GSA(frame):
     if frame[1] != '1':
@@ -69,7 +70,7 @@ def parse_raw(file_path):
     initialized = False
     frame_count = 0
     satellites = {'time': [], 'sat': []}
-    position = {'time': [], 'lon': [], 'lat': []}
+    position = []
     altitude = {'time': [], 'alt': []}
     pdop = {'time': [], 'pdop': []}
     hdop = {'time': [], 'hdop': []}
@@ -125,9 +126,8 @@ def parse_raw(file_path):
                         satellites['time'].append(timestamp)
                         satellites['sat'].append(parsed_frame['satellites'])
 
-                        position['time'].append(timestamp)
-                        position['lon'].append(parsed_frame['longitude'])
-                        position['lat'].append(parsed_frame['latitude'])
+                        if last_altitude != 0:
+                            position.append((parsed_frame['longitude'], parsed_frame['latitude'], last_altitude))
 
                         altitude['time'].append(timestamp)
                         altitude['alt'].append(parsed_frame['altitude'])
@@ -143,9 +143,8 @@ def parse_raw(file_path):
                     if parsed_frame is not None:
                         frame_count += 1
 
-                        position['time'].append(timestamp)
-                        position['lon'].append(parsed_frame['longitude'])
-                        position['lat'].append(parsed_frame['latitude'])
+                        if last_altitude != 0:
+                            position.append((parsed_frame['longitude'], parsed_frame['latitude'], last_altitude))
 
                         h_speed['time'].append(timestamp)
                         h_speed['speed'].append(parsed_frame['speed'])
@@ -201,6 +200,16 @@ def parse_raw(file_path):
     plt.ylim(min(v_speed['speed'])*1.1, max(v_speed['speed'])*1.1)
 
     plt.savefig('v_speed.svg')
+
+    kml = simplekml.Kml()
+    ls = kml.newlinestring(name="Flight Path", description="Flight path for OpenStratos.", coords=position)
+    ls.extrude = 1
+    ls.tessellate = 1
+    ls.altitudemode = simplekml.AltitudeMode.absolute
+    ls.style.linestyle.width = 4
+    ls.style.linestyle.color = "7f00ffff"
+    ls.polystyle.color = "7f00ff00"
+    kml.save("OpenStratos.kml")
 
     print("Total frames: %d" % frame_count)
     print("Max. altitude: %f m" % max(altitude['alt']))
