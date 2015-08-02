@@ -74,7 +74,11 @@ def parse_raw(file_path):
     pdop = {'time': [], 'pdop': []}
     hdop = {'time': [], 'hdop': []}
     vdop = {'time': [], 'vdop': []}
-    speed = {'time': [], 'speed': []}
+    h_speed = {'time': [], 'speed': []}
+    v_speed = {'time': [], 'speed': []}
+
+    last_altitude = 0
+    last_v_timestamp = 0
     with codecs.open(file_path, 'r', 'iso-8859-1') as raw_file:
         for line in raw_file:
             if not initialized:
@@ -127,6 +131,13 @@ def parse_raw(file_path):
 
                         altitude['time'].append(timestamp)
                         altitude['alt'].append(parsed_frame['altitude'])
+
+                        if (last_altitude != 0):
+                            v_speed['time'].append(timestamp)
+                            v_speed['speed'].append((parsed_frame['altitude']-last_altitude)/
+                                (timestamp-last_v_timestamp).total_seconds())
+                        last_altitude = parsed_frame['altitude']
+                        last_v_timestamp = timestamp
                 elif frame[0] == '$GPRMC':
                     parsed_frame = parse_RMC(frame)
                     if parsed_frame is not None:
@@ -136,8 +147,8 @@ def parse_raw(file_path):
                         position['lon'].append(parsed_frame['longitude'])
                         position['lat'].append(parsed_frame['latitude'])
 
-                        speed['time'].append(timestamp)
-                        speed['speed'].append(parsed_frame['speed'])
+                        h_speed['time'].append(timestamp)
+                        h_speed['speed'].append(parsed_frame['speed'])
 
     fig, ax1 = plt.subplots()
     fig.suptitle('Satellites and precision', fontsize=20)
@@ -172,18 +183,29 @@ def parse_raw(file_path):
 
     plt.savefig('altitude.svg')
 
-    plt.figure(figsize=(len(speed['time'])/40, max(max(speed['speed'])*1.1/5, 5)))
+    plt.figure(figsize=(len(h_speed['time'])/40, max(max(h_speed['speed'])*1.1/5, 5)))
     plt.title('Horizontal speed', fontsize=20)
     plt.xlabel('Time', fontsize=15)
     plt.ylabel('Speed (m/s)', fontsize=15)
-    plt.plot(speed['time'], speed['speed'], 'k-')
-    plt.ylim((0, max(speed['speed'])*1.1))
+    plt.plot(h_speed['time'], h_speed['speed'], 'k-')
+    plt.ylim((0, max(h_speed['speed'])*1.1))
 
     plt.savefig('h_speed.svg')
 
+    plt.figure(figsize=(len(v_speed['time'])/40,
+        max(max(v_speed['speed'])*1.1/5 + abs(min(v_speed['speed']))*1.1/5, 5)))
+    plt.title('Vertical speed', fontsize=20)
+    plt.xlabel('Time', fontsize=15)
+    plt.ylabel('Speed (m/s)', fontsize=15)
+    plt.plot(v_speed['time'], v_speed['speed'], 'k-')
+    plt.ylim(min(v_speed['speed'])*1.1, max(v_speed['speed'])*1.1)
+
+    plt.savefig('v_speed.svg')
+
     print("Total frames: %d" % frame_count)
     print("Max. altitude: %f m" % max(altitude['alt']))
-    print("Max. horizontal speed: %f m/s" % max(speed['speed']))
+    print("Max. horizontal speed: %f m/s" % max(h_speed['speed']))
+    print("Max. vertical speed: %f m/s" % max(v_speed['speed']))
 
 parser = argparse.ArgumentParser(description='Process OpenStratos GPS data')
 parser.add_argument('file', metavar='FILE', type=str, nargs=1,
