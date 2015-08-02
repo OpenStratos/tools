@@ -4,11 +4,21 @@ import argparse
 import os
 import codecs
 import datetime
-
-# TODO check checksums
+import matplotlib.pyplot as plt
+from matplotlib.dates import date2num, num2date
+import numpy as np
 
 def parse_GSA(frame):
-    return {'time': None}
+    if frame[1] != '1':
+        data = {}
+        data['mode'] = '2D' if frame[2] == '2' else '3D'
+        data['pdop'] = float(frame[15]) if frame[15] != '' else None
+        data['hdop'] = float(frame[16]) if frame[16] != '' else None
+        data['vdop'] = float(frame[17][:-3]) if frame[17][:-3] != '' else None
+
+        return data
+
+    return None
 
 def parse_GGA(frame):
     if frame[6] != '0':
@@ -24,6 +34,9 @@ def parse_GGA(frame):
 
         data['quality'] = 'GPS' if frame[6] == '1' else 'DGPS'
         data['satellites'] = int(frame[7])
+        data['hdop'] = float(frame[8])
+        data['altitude'] = float(frame[9])
+        data['geo_height'] = float(frame[11])
 
         return data
 
@@ -35,6 +48,12 @@ def parse_RMC(frame):
 def parse_raw(file_path):
     initialized = False
     frame_count = 0
+    satellites = {'time': [], 'sat': []}
+    position = {'time': [], 'lon': [], 'lat': []}
+    altitude = {'time': [], 'alt': []}
+    pdop = {'time': [], 'pdop': []}
+    hdop = {'time': [], 'hdop': []}
+    vdop = {'time': [], 'vdop': []}
     with codecs.open(file_path, 'r', 'iso-8859-1') as raw_file:
         for line in raw_file:
             if not initialized:
@@ -56,25 +75,76 @@ def parse_raw(file_path):
             else:
                 sent = False
 
-            print("Timestamp: "+timestamp.isoformat())
-
             if not sent:
                 if frame[0] == '$GPGSA':
                     parsed_frame = parse_GSA(frame)
                     if parsed_frame is not None:
                         frame_count += 1
+
+                        if parsed_frame['pdop'] is not None:
+                            pdop['time'].append(timestamp)
+                            pdop['pdop'].append(parsed_frame['pdop'])
+
+                        if parsed_frame['hdop'] is not None:
+                            hdop['time'].append(timestamp)
+                            hdop['hdop'].append(parsed_frame['hdop'])
+
+                        if parsed_frame['vdop'] is not None:
+                            vdop['time'].append(timestamp)
+                            vdop['vdop'].append(parsed_frame['vdop'])
                 elif frame[0] == '$GPGGA':
                     parsed_frame = parse_GGA(frame)
                     if parsed_frame is not None:
                         frame_count += 1
-                        print(frame)
-                        print(parsed_frame['satellites'])
+
+                        satellites['time'].append(timestamp)
+                        satellites['sat'].append(parsed_frame['satellites'])
+
+                        position['time'].append(timestamp)
+                        position['lon'].append(parsed_frame['longitude'])
+                        position['lat'].append(parsed_frame['latitude'])
+
+                        altitude['time'].append(timestamp)
+                        altitude['alt'].append(parsed_frame['altitude'])
                 elif frame[0] == '$GPRMC':
                     parsed_frame = parse_RMC(frame)
                     if parsed_frame is not None:
                         frame_count += 1
 
+    fig, ax1 = plt.subplots()
+    fig.suptitle('Satellites and precision', fontsize=20)
+    fig.set_figheight(8)
+    fig.set_figwidth(len(satellites['time'])/30)
+    satellite_line = ax1.plot(satellites['time'], satellites['sat'], 'k-', label='Satellites')
+    ax1.set_xlabel('Time', fontsize=15)
+    ax1.set_ylabel('Satellites', fontsize=15)
+    ax1.set_ylim((0, max(satellites['sat'])+2))
+
+    ax2 = ax1.twinx()
+    pdop_line = ax2.plot(pdop['time'], pdop['pdop'], 'r-', label='PDOP')
+    hdop_line = ax2.plot(pdop['time'], hdop['hdop'], 'g-', label='HDOP')
+    vdop_line = ax2.plot(pdop['time'], vdop['vdop'], 'b-', label='VDOP')
+    ax2.set_ylabel('DOP', fontsize=15)
+    ax2.set_ylim((0, max(max(pdop['pdop']), max(hdop['hdop']), max(vdop['vdop']))+2))
+
+    lines = satellite_line + pdop_line + hdop_line + vdop_line
+    labels = [l.get_label() for l in lines]
+    ax1.legend(lines, labels)
+
+    # plt.xticks(np.arange(min(satellites['time']), max(satellites['time']), datetime.timedelta(seconds=60)))
+
+    plt.savefig('satellites_precision.svg')
+
+    plt.figure(figsize=(len(altitude['time'])/40, max(altitude['alt'])*1.1/5))
+    plt.title('Altitude above sea level', fontsize=20)
+    plt.xlabel('Time', fontsize=15)
+    plt.ylabel('Altitude (m)', fontsize=15)
+    plt.plot(altitude['time'], altitude['alt'], 'k-')
+    plt.ylim((0,max(altitude['alt'])*1.1))
+
+    plt.savefig('altitude.svg')
     print("Total frames: %d" % frame_count)
+    print("Max. altitude: %f m" % max(altitude['alt']))
 
 
 parser = argparse.ArgumentParser(description='Process OpenStratos GPS data')
