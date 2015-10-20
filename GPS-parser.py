@@ -4,6 +4,7 @@ import argparse
 import os
 import codecs
 import datetime
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num, num2date
 import numpy as np
@@ -87,6 +88,8 @@ def parse_raw(file_path):
                 continue
 
             frame_data = line.split()
+            if (len(frame_data) < 2):
+                continue
 
             date = frame_data[2].split('/')
             time = frame_data[3].split(':')
@@ -149,53 +152,56 @@ def parse_raw(file_path):
                         h_speed['time'].append(timestamp)
                         h_speed['speed'].append(parsed_frame['speed'])
 
+    matplotlib.rcParams.update({'font.size': 50})
     fig, ax1 = plt.subplots()
-    fig.suptitle('Satellites and precision', fontsize=20)
-    fig.set_figheight(8)
-    fig.set_figwidth(len(satellites['time'])/30)
-    satellite_line = ax1.plot(satellites['time'], satellites['sat'], 'k-', label='Satellites')
-    ax1.set_xlabel('Time', fontsize=15)
-    ax1.set_ylabel('Satellites', fontsize=15)
+    fig.suptitle('Satellites and precision', fontsize=70)
+    fig.set_figheight(30)
+    fig.set_figwidth(len(satellites['time'])/50)
+    satellite_line = ax1.plot(satellites['time'], satellites['sat'], 'k-', linewidth=8.0, label='Satellites')
+    ax1.set_xlabel('Time', fontsize=70)
+    ax1.set_ylabel('Satellites', fontsize=70)
     ax1.set_ylim((0, max(satellites['sat'])+2))
 
     ax2 = ax1.twinx()
-    pdop_line = ax2.plot(pdop['time'], pdop['pdop'], 'r-', label='PDOP')
-    hdop_line = ax2.plot(pdop['time'], hdop['hdop'], 'g-', label='HDOP')
-    vdop_line = ax2.plot(pdop['time'], vdop['vdop'], 'b-', label='VDOP')
-    ax2.set_ylabel('DOP', fontsize=15)
+    pdop_line = ax2.plot(pdop['time'], pdop['pdop'], 'r-', linewidth=5.0, label='PDOP')
+    hdop_line = ax2.plot(pdop['time'], hdop['hdop'], 'g-', linewidth=5.0, label='HDOP')
+    vdop_line = ax2.plot(pdop['time'], vdop['vdop'], 'b-', linewidth=5.0, label='VDOP')
+    ax2.set_ylabel('DOP', fontsize=70)
     ax2.set_ylim((0, max(max(pdop['pdop']), max(hdop['hdop']), max(vdop['vdop']))+2))
 
     lines = satellite_line + pdop_line + hdop_line + vdop_line
     labels = [l.get_label() for l in lines]
     ax1.legend(lines, labels)
 
-    # plt.xticks(np.arange(min(satellites['time']), max(satellites['time']), datetime.timedelta(seconds=60)))
+    # plt.xticks(np.arange(min(satellites['time']), max(satellites['time']), datetime.timedelta(seconds=600)))
 
     plt.savefig('satellites_precision.svg')
 
-    plt.figure(figsize=(len(altitude['time'])/40, max(altitude['alt'])*1.1/5))
-    plt.title('Altitude above sea level', fontsize=20)
-    plt.xlabel('Time', fontsize=15)
-    plt.ylabel('Altitude (m)', fontsize=15)
-    plt.plot(altitude['time'], altitude['alt'], 'k-')
+    plt.figure(figsize=(len(altitude['time'])/40, max(altitude['alt'])*1.1/250))
+    plt.title('Altitude above sea level', fontsize=200)
+    plt.xlabel('Time', fontsize=150)
+    plt.ylabel('Altitude (m)', fontsize=150)
+    plt.plot(altitude['time'], altitude['alt'], 'k-', linewidth=10.0)
     plt.ylim((0, max(altitude['alt'])*1.1))
 
     plt.savefig('altitude.svg')
 
-    plt.figure(figsize=(len(h_speed['time'])/40, max(max(h_speed['speed'])*1.1/5, 5)))
-    plt.title('Horizontal speed', fontsize=20)
-    plt.xlabel('Time', fontsize=15)
-    plt.ylabel('Speed (m/s)', fontsize=15)
+    matplotlib.rcParams.update({'font.size': 25})
+    plt.figure(figsize=(len(h_speed['time'])/150, max(max(h_speed['speed'])*1.1/20, 5)))
+    plt.title('Horizontal speed', fontsize=40)
+    plt.xlabel('Time', fontsize=30)
+    plt.ylabel('Speed (m/s)', fontsize=30)
     plt.plot(h_speed['time'], h_speed['speed'], 'k-')
     plt.ylim((0, max(h_speed['speed'])*1.1))
 
     plt.savefig('h_speed.svg')
 
+    matplotlib.rcParams.update({'font.size': 75})
     plt.figure(figsize=(len(v_speed['time'])/40,
         max(max(v_speed['speed'])*1.1/5 + abs(min(v_speed['speed']))*1.1/5, 5)))
-    plt.title('Vertical speed', fontsize=20)
-    plt.xlabel('Time', fontsize=15)
-    plt.ylabel('Speed (m/s)', fontsize=15)
+    plt.title('Vertical speed', fontsize=200)
+    plt.xlabel('Time', fontsize=150)
+    plt.ylabel('Speed (m/s)', fontsize=150)
     plt.plot(v_speed['time'], v_speed['speed'], 'k-')
     plt.ylim(min(v_speed['speed'])*1.1, max(v_speed['speed'])*1.1)
 
