@@ -11,7 +11,7 @@ import numpy as np
 import simplekml
 
 def parse_GSA(frame):
-    if frame[1] != '1':
+    if len(frame) == 18 and frame[1] != '1':
         data = {}
         data['mode'] = '2D' if frame[2] == '2' else '3D'
         data['pdop'] = float(frame[15]) if frame[15] != '' else None
@@ -23,7 +23,7 @@ def parse_GSA(frame):
     return None
 
 def parse_GGA(frame):
-    if frame[6] != '0':
+    if len(frame) == 15 and frame[6] != '0':
         data = {}
         data['time'] = datetime.time(int(frame[1][:2]), int(frame[1][2:4]), int(frame[1][4:6]))
 
@@ -45,7 +45,7 @@ def parse_GGA(frame):
     return None
 
 def parse_RMC(frame):
-    if frame[2] == 'A':
+    if len(frame) == 13 and frame[2] == 'A':
         data = {}
         data['timestamp'] = datetime.datetime(int(frame[9][4:6])+2000, int(frame[9][2:4]), int(frame[9][:2]),
             int(frame[1][:2]), int(frame[1][2:4]), int(frame[1][4:6]))
@@ -105,8 +105,12 @@ def parse_raw(file_path):
                 sent = False
 
             if not sent:
-                if frame[0] == '$GPGSA':
-                    parsed_frame = parse_GSA(frame)
+                if 'GSA' in frame[0]:
+                    try:
+                        parsed_frame = parse_GSA(frame)
+                    except ValueError:
+                        continue
+
                     if parsed_frame is not None:
                         frame_count += 1
 
@@ -121,8 +125,11 @@ def parse_raw(file_path):
                         if parsed_frame['vdop'] is not None:
                             vdop['time'].append(timestamp)
                             vdop['vdop'].append(parsed_frame['vdop'])
-                elif frame[0] == '$GPGGA':
-                    parsed_frame = parse_GGA(frame)
+                elif 'GGA' in frame[0]:
+                    try:
+                        parsed_frame = parse_GGA(frame)
+                    except ValueError:
+                        continue
                     if parsed_frame is not None:
                         frame_count += 1
 
@@ -141,8 +148,11 @@ def parse_raw(file_path):
                                 (timestamp-last_v_timestamp).total_seconds())
                         last_altitude = parsed_frame['altitude']
                         last_v_timestamp = timestamp
-                elif frame[0] == '$GPRMC':
-                    parsed_frame = parse_RMC(frame)
+                elif 'RMC' in frame[0]:
+                    try:
+                        parsed_frame = parse_RMC(frame)
+                    except ValueError:
+                        continue
                     if parsed_frame is not None:
                         frame_count += 1
 
@@ -156,7 +166,7 @@ def parse_raw(file_path):
     fig, ax1 = plt.subplots()
     fig.suptitle('Satellites and precision', fontsize=70)
     fig.set_figheight(30)
-    fig.set_figwidth(len(satellites['time'])/50)
+    fig.set_figwidth(max(len(satellites['time'])/50, 100))
     satellite_line = ax1.plot(satellites['time'], satellites['sat'], 'k-', linewidth=8.0, label='Satellites')
     ax1.set_xlabel('Time', fontsize=70)
     ax1.set_ylabel('Satellites', fontsize=70)
@@ -177,7 +187,7 @@ def parse_raw(file_path):
 
     plt.savefig('satellites_precision.svg')
 
-    plt.figure(figsize=(len(altitude['time'])/40, max(altitude['alt'])*1.1/250))
+    plt.figure(figsize=(max(len(altitude['time'])/40, 100), max(max(altitude['alt'])*1.1/250, 100)))
     plt.title('Altitude above sea level', fontsize=200)
     plt.xlabel('Time', fontsize=150)
     plt.ylabel('Altitude (m)', fontsize=150)
@@ -187,21 +197,21 @@ def parse_raw(file_path):
     plt.savefig('altitude.svg')
 
     matplotlib.rcParams.update({'font.size': 25})
-    plt.figure(figsize=(len(h_speed['time'])/150, max(max(h_speed['speed'])*1.1/20, 5)))
-    plt.title('Horizontal speed', fontsize=40)
-    plt.xlabel('Time', fontsize=30)
-    plt.ylabel('Speed (m/s)', fontsize=30)
+    plt.figure(figsize=(max(len(h_speed['time'])/150, 75), max(max(h_speed['speed'])*1.1/20, 20)))
+    plt.title('Horizontal speed', fontsize=100)
+    plt.xlabel('Time', fontsize=75)
+    plt.ylabel('Speed (m/s)', fontsize=75)
     plt.plot(h_speed['time'], h_speed['speed'], 'k-')
     plt.ylim((0, max(h_speed['speed'])*1.1))
 
     plt.savefig('h_speed.svg')
 
     matplotlib.rcParams.update({'font.size': 75})
-    plt.figure(figsize=(len(v_speed['time'])/40,
-        max(max(v_speed['speed'])*1.1/5 + abs(min(v_speed['speed']))*1.1/5, 5)))
-    plt.title('Vertical speed', fontsize=200)
-    plt.xlabel('Time', fontsize=150)
-    plt.ylabel('Speed (m/s)', fontsize=150)
+    plt.figure(figsize=(max(len(v_speed['time'])/40, 75),
+        max(max(v_speed['speed'])*1.1/5 + abs(min(v_speed['speed']))*1.1/5, 20)))
+    plt.title('Vertical speed', fontsize=100)
+    plt.xlabel('Time', fontsize=75)
+    plt.ylabel('Speed (m/s)', fontsize=75)
     plt.plot(v_speed['time'], v_speed['speed'], 'k-')
     plt.ylim(min(v_speed['speed'])*1.1, max(v_speed['speed'])*1.1)
 

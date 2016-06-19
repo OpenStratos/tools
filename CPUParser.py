@@ -29,7 +29,7 @@ def parse_raw(file_path):
             cpu["cpu"].append(float(data[5])*100)
 
     matplotlib.rcParams.update({'font.size': 100})
-    plt.figure(figsize=(len(cpu['time'])/2, 110))
+    plt.figure(figsize=(max(len(cpu['time'])/2, 200), 110))
     plt.title('CPU consumption', fontsize=200)
     plt.xlabel('Time', fontsize=150)
     plt.ylabel('CPU consumption (%)', fontsize=150)

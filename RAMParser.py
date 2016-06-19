@@ -29,7 +29,7 @@ def parse_raw(file_path):
             ram["ram"].append(float(data[5])*100)
 
     matplotlib.rcParams.update({'font.size': 100})
-    plt.figure(figsize=(len(ram['time'])/2, 110))
+    plt.figure(figsize=(max(len(ram['time'])/2, 200), 110))
     plt.title('RAM consumption', fontsize=200)
     plt.xlabel('Time', fontsize=150)
     plt.ylabel('RAM consumption (%)', fontsize=150)
