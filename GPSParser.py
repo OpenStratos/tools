@@ -11,7 +11,7 @@ import numpy as np
 import simplekml
 
 def parse_GSA(frame):
-    if len(frame) == 18 and frame[1] != '1':
+    if len(frame) == 18 and (frame[2] == '2' or frame[2] == '3'):
         data = {}
         data['mode'] = '2D' if frame[2] == '2' else '3D'
         data['pdop'] = float(frame[15]) if frame[15] != '' else None
@@ -20,10 +20,13 @@ def parse_GSA(frame):
 
         return data
 
-    return None
+    elif len(frame) == 18 and frame[2] == '1':
+        return False
+    else:
+        return None
 
 def parse_GGA(frame):
-    if len(frame) == 15 and frame[6] != '0':
+    if len(frame) == 15 and (frame[6] == '1' or frame[6] == '2'):
         data = {}
         data['time'] = datetime.time(int(frame[1][:2]), int(frame[1][2:4]), int(frame[1][4:6]))
 
@@ -42,7 +45,10 @@ def parse_GGA(frame):
 
         return data
 
-    return None
+    elif len(frame) == 15 and frame[6] == '0':
+        return False
+    else:
+        return None
 
 def parse_RMC(frame):
     if len(frame) == 13 and frame[2] == 'A':
@@ -65,7 +71,10 @@ def parse_RMC(frame):
 
         return data
 
-    return None
+    elif len(frame) == 13 and frame[2] == 'V':
+        return False
+    else:
+        return None
 
 def parse_raw(file_path):
     initialized = False
@@ -78,6 +87,7 @@ def parse_raw(file_path):
     vdop = {'time': [], 'vdop': []}
     h_speed = {'time': [], 'speed': []}
     v_speed = {'time': [], 'speed': []}
+    fix = {'time': [], 'fix': []}
 
     last_altitude = 0
     last_v_timestamp = 0
@@ -113,18 +123,24 @@ def parse_raw(file_path):
 
                     if parsed_frame is not None:
                         frame_count += 1
+                        if parsed_frame is False:
+                            fix['time'].append(timestamp)
+                            fix['fix'].append(False)
+                        else:
+                            fix['time'].append(timestamp)
+                            fix['fix'].append(True)
 
-                        if parsed_frame['pdop'] is not None:
-                            pdop['time'].append(timestamp)
-                            pdop['pdop'].append(parsed_frame['pdop'])
+                            if parsed_frame['pdop'] is not None:
+                                pdop['time'].append(timestamp)
+                                pdop['pdop'].append(parsed_frame['pdop'])
 
-                        if parsed_frame['hdop'] is not None:
-                            hdop['time'].append(timestamp)
-                            hdop['hdop'].append(parsed_frame['hdop'])
+                            if parsed_frame['hdop'] is not None:
+                                hdop['time'].append(timestamp)
+                                hdop['hdop'].append(parsed_frame['hdop'])
 
-                        if parsed_frame['vdop'] is not None:
-                            vdop['time'].append(timestamp)
-                            vdop['vdop'].append(parsed_frame['vdop'])
+                            if parsed_frame['vdop'] is not None:
+                                vdop['time'].append(timestamp)
+                                vdop['vdop'].append(parsed_frame['vdop'])
                 elif 'GGA' in frame[0]:
                     try:
                         parsed_frame = parse_GGA(frame)
@@ -132,22 +148,28 @@ def parse_raw(file_path):
                         continue
                     if parsed_frame is not None:
                         frame_count += 1
+                        if parsed_frame is False:
+                            fix['time'].append(timestamp)
+                            fix['fix'].append(False)
+                        else:
+                            fix['time'].append(timestamp)
+                            fix['fix'].append(True)
 
-                        satellites['time'].append(timestamp)
-                        satellites['sat'].append(parsed_frame['satellites'])
+                            satellites['time'].append(timestamp)
+                            satellites['sat'].append(parsed_frame['satellites'])
 
-                        if last_altitude != 0:
-                            position.append((parsed_frame['longitude'], parsed_frame['latitude'], last_altitude))
+                            if last_altitude != 0:
+                                position.append((parsed_frame['longitude'], parsed_frame['latitude'], last_altitude))
 
-                        altitude['time'].append(timestamp)
-                        altitude['alt'].append(parsed_frame['altitude'])
+                            altitude['time'].append(timestamp)
+                            altitude['alt'].append(parsed_frame['altitude'])
 
-                        if (last_altitude != 0):
-                            v_speed['time'].append(timestamp)
-                            v_speed['speed'].append((parsed_frame['altitude']-last_altitude)/
-                                (timestamp-last_v_timestamp).total_seconds())
-                        last_altitude = parsed_frame['altitude']
-                        last_v_timestamp = timestamp
+                            if (last_altitude != 0):
+                                v_speed['time'].append(timestamp)
+                                v_speed['speed'].append((parsed_frame['altitude']-last_altitude)/
+                                    (timestamp-last_v_timestamp).total_seconds())
+                            last_altitude = parsed_frame['altitude']
+                            last_v_timestamp = timestamp
                 elif 'RMC' in frame[0]:
                     try:
                         parsed_frame = parse_RMC(frame)
@@ -155,12 +177,18 @@ def parse_raw(file_path):
                         continue
                     if parsed_frame is not None:
                         frame_count += 1
+                        if parsed_frame is False:
+                            fix['time'].append(timestamp)
+                            fix['fix'].append(False)
+                        else:
+                            fix['time'].append(timestamp)
+                            fix['fix'].append(True)
 
-                        if last_altitude != 0:
-                            position.append((parsed_frame['longitude'], parsed_frame['latitude'], last_altitude))
+                            if last_altitude != 0:
+                                position.append((parsed_frame['longitude'], parsed_frame['latitude'], last_altitude))
 
-                        h_speed['time'].append(timestamp)
-                        h_speed['speed'].append(parsed_frame['speed'])
+                            h_speed['time'].append(timestamp)
+                            h_speed['speed'].append(parsed_frame['speed'])
 
     matplotlib.rcParams.update({'font.size': 50})
     fig, ax1 = plt.subplots()
@@ -216,6 +244,15 @@ def parse_raw(file_path):
     plt.ylim(min(v_speed['speed'])*1.1, max(v_speed['speed'])*1.1)
 
     plt.savefig('v_speed.svg')
+
+    matplotlib.rcParams.update({'font.size': 75})
+    plt.figure(figsize=(max(len(fix['time'])/40, 75), 20))
+    plt.title('Fix', fontsize=100)
+    plt.xlabel('Time', fontsize=75)
+    plt.ylabel('Fix', fontsize=75)
+    plt.plot(fix['time'], fix['fix'], 'k-')
+
+    plt.savefig('fix.svg')
 
     kml = simplekml.Kml()
     ls = kml.newlinestring(name="Flight Path", description="Flight path for OpenStratos.", coords=position)
