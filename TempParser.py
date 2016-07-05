@@ -41,6 +41,9 @@ def parse_raw(file_path):
 
     plt.savefig('temperature.svg')
 
+    print("Min / Max GPU temp: %f°C / %f°C" % (min(gpu['temp']), max(gpu['temp'])))
+    print("Min / Max CPU temp: %f°C / %f°C" % (min(cpu['temp']), max(cpu['temp'])))
+
 parser = argparse.ArgumentParser(description='Process OpenStratos temperature data')
 parser.add_argument('file', metavar='FILE', type=str, nargs=1,
                    help='the file containing temperature data')
